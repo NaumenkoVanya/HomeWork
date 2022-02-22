@@ -10,13 +10,17 @@ import UIKit
 class ViewController: UIViewController {
 
     @IBOutlet var questionLabel: UILabel!
+    @IBOutlet var skipsLabel: UILabel!
     @IBOutlet var buttons: [UIButton]!
     @IBOutlet var skipButton: UIButton!
 
     @IBOutlet var buttonsXConstraint: [NSLayoutConstraint]!
     @IBOutlet var skipButtonBottomContraint: NSLayoutConstraint!
 
+    let buttonTitles = ["Хорошо", "Ладно", "Ясно", "Понятно", "Окей"]
+
     var blurView: UIVisualEffectView?
+    var answerResultView: AnswerResultView?
 
     private var game: QuizGame?
 
@@ -28,14 +32,12 @@ class ViewController: UIViewController {
         self.game = game
 
         addResultView()
-        fillContent(question: game.nextQuestion())
-        showContent()
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
-        showContent()
+        showNextQuestion()
     }
 
     // MARK: - UI
@@ -49,17 +51,28 @@ class ViewController: UIViewController {
         view.addSubview(blurView)
         blurView.addConstraintsToSuperview()
 
-        // Add Labelsс
-        // Result
-        // Explanation
-        // Button
+        let answerResultView = AnswerResultView(frame: .zero)
+        answerResultView.translatesAutoresizingMaskIntoConstraints = false
+        blurView.contentView.addSubview(answerResultView)
+        answerResultView.addConstraintsToSuperview()
 
         self.blurView = blurView
+        self.answerResultView = answerResultView
+    }
+
+    @objc func showNextQuestion() {
+        blurView?.isHidden = true
+
+        if let question = game?.nextQuestion() {
+            fillContent(question: question)
+            showContent()
+        }
     }
 
     func fillContent(question: Question) {
         questionLabel.isHidden = true
         questionLabel.text = question.question
+        skipsLabel.text = "\(game?.skipsLeft ?? 0)"
 
         for (idx, button) in buttons.enumerated() {
             button.isHidden = true
@@ -117,6 +130,8 @@ class ViewController: UIViewController {
             delay += 0.15
         }
 
+        guard game?.canSkip ?? false else { return }
+        
         skipButtonBottomContraint.constant = 20
         UIView.animate(
             withDuration: 0.3,
@@ -130,25 +145,33 @@ class ViewController: UIViewController {
             completion: nil)
     }
 
+    func updateSkips() {
+        skipsLabel.text = "\(game?.skipsLeft ?? 0)"
+        skipButton.isHidden = !(game?.canSkip ?? false)
+    }
+
     // MARK: - Actions
 
     @IBAction func answerButtonTapped(_ sender: UIButton) {
         guard let game = game else { return }
 
-        let isCorrect = game.checkAnswer(sender.tag)
+        let answer = game.checkAnswer(sender.tag)
 
-        if isCorrect {
-            fillContent(question: game.nextQuestion())
-            showContent()
-        }
+        answerResultView?.configure(with: AnswerResult(isCorrect: answer.isCorrect,
+                                                       explanation: answer.explanation,
+                                                       buttonTitle: buttonTitles[Int.random(in: 0..<buttonTitles.count)]),
+                                    target: self,
+                                    action: #selector(showNextQuestion))
+
+        blurView?.isHidden = false
     }
 
     @IBAction func skipButtonTapped(_ sender: Any) {
-        blurView?.isHidden = false
         if let question = game?.skipQuestion() {
             fillContent(question: question)
+
             showContent()
+            updateSkips()
         }
     }
 }
-
